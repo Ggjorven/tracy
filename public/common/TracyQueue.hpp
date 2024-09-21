@@ -401,7 +401,8 @@ enum class GpuContextType : uint8_t
     Vulkan,
     OpenCL,
     Direct3D12,
-    Direct3D11
+    Direct3D11,
+    Metal
 };
 
 enum GpuContextFlags : uint8_t
@@ -647,6 +648,7 @@ struct QueueSourceCodeNotAvailable
 struct QueueCpuTopology
 {
     uint32_t package;
+    uint32_t die;
     uint32_t core;
     uint32_t thread;
 };

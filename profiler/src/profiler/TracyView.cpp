@@ -555,6 +555,11 @@ bool View::Draw()
         ImGui::EndPopup();
     }
 
+    static FileCompression comp = FileCompression::Zstd;
+    static int zlvl = 3;
+    static bool buildDict = false;
+    static int streams = 4;
+
     bool saveFailed = false;
     if( !m_filenameStaging.empty() )
     {
@@ -569,46 +574,44 @@ bool View::Draw()
         ImGui::PopFont();
         ImGui::Separator();
 
-        static FileCompression comp = FileCompression::Zstd;
-        static int zlvl = 3;
-        ImGui::TextUnformatted( ICON_FA_FILE_ZIPPER " Trace compression" );
-        ImGui::SameLine();
-        TextDisabledUnformatted( "Can be changed later with the upgrade utility" );
-        ImGui::Indent();
-        int idx = 0;
-        while( CompressionName[idx] )
+        if( ImGui::TreeNode( ICON_FA_FILE_ZIPPER " Trace compression" ) )
         {
-            if( ImGui::RadioButton( CompressionName[idx], (int)comp == idx ) ) comp = (FileCompression)idx;
+            TextDisabledUnformatted( "Can be changed later with the upgrade utility" );
+            ImGui::Indent();
+            int idx = 0;
+            while( CompressionName[idx] )
+            {
+                if( ImGui::RadioButton( CompressionName[idx], (int)comp == idx ) ) comp = (FileCompression)idx;
+                ImGui::SameLine();
+                TextDisabledUnformatted( CompressionDesc[idx] );
+                idx++;
+            }
+            ImGui::Unindent();
+            ImGui::TextUnformatted( "Zstd level" );
             ImGui::SameLine();
-            TextDisabledUnformatted( CompressionDesc[idx] );
-            idx++;
-        }
-        ImGui::Unindent();
-        ImGui::TextUnformatted( "Zstd level" );
-        ImGui::SameLine();
-        TextDisabledUnformatted( "Increasing level decreases file size, but increases save and load times" );
-        ImGui::Indent();
-        if( ImGui::SliderInt( "##zstd", &zlvl, 1, 22, "%d", ImGuiSliderFlags_AlwaysClamp ) )
-        {
-            comp = FileCompression::Zstd;
-        }
-        ImGui::Unindent();
+            TextDisabledUnformatted( "Increasing level decreases file size, but increases save and load times" );
+            ImGui::Indent();
+            if( ImGui::SliderInt( "##zstd", &zlvl, 1, 22, "%d", ImGuiSliderFlags_AlwaysClamp ) )
+            {
+                comp = FileCompression::Zstd;
+            }
+            ImGui::Unindent();
 
-        static int streams = 4;
-        ImGui::TextUnformatted( ICON_FA_SHUFFLE " Compression streams" );
-        ImGui::SameLine();
-        TextDisabledUnformatted( "Parallelize save and load at the cost of file size" );
-        ImGui::Indent();
-        ImGui::SliderInt( "##streams", &streams, 1, 64, "%d", ImGuiSliderFlags_AlwaysClamp );
-        ImGui::Unindent();
-
-        static bool buildDict = false;
-        if( m_worker.GetFrameImageCount() != 0 )
-        {
-            ImGui::Separator();
-            ImGui::Checkbox( "Build frame images dictionary", &buildDict );
+            ImGui::TextUnformatted( ICON_FA_SHUFFLE " Compression streams" );
             ImGui::SameLine();
-            TextDisabledUnformatted( "Decreases run-time memory requirements" );
+            TextDisabledUnformatted( "Parallelize save and load at the cost of file size" );
+            ImGui::Indent();
+            ImGui::SliderInt( "##streams", &streams, 1, 64, "%d", ImGuiSliderFlags_AlwaysClamp );
+            ImGui::Unindent();
+
+            if( m_worker.GetFrameImageCount() != 0 )
+            {
+                ImGui::Separator();
+                ImGui::Checkbox( "Build frame images dictionary", &buildDict );
+                ImGui::SameLine();
+                TextDisabledUnformatted( "Decreases run-time memory requirements" );
+            }
+            ImGui::TreePop();
         }
 
         ImGui::Separator();
@@ -712,10 +715,17 @@ bool View::DrawImpl()
     auto& threadHints = m_worker.GetPendingThreadHints();
     if( !threadHints.empty() )
     {
+        m_threadReinsert.reserve( threadHints.size()  );
         for( auto v : threadHints )
         {
             auto it = std::find_if( m_threadOrder.begin(), m_threadOrder.end(), [v]( const auto& t ) { return t->id == v; } );
-            if( it != m_threadOrder.end() ) m_threadOrder.erase( it );      // Will be added in the correct place later, like any newly appearing thread
+            if( it != m_threadOrder.end() )
+            {
+                // Will be reinserted in the correct place later.
+                // A separate list is kept of threads that were already known to avoid having to figure out which one is missing in m_threadOrder.
+                m_threadReinsert.push_back( *it );
+                m_threadOrder.erase( it );
+            }
         }
         m_worker.ClearPendingThreadHints();
     }
@@ -872,13 +882,15 @@ bool View::DrawImpl()
         ImGui::PopStyleColor( 3 );
     }
     ImGui::SameLine();
-    ToggleButton( ICON_FA_GEAR " Options", m_showOptions );
+    ToggleButton( ICON_FA_GEAR, m_showOptions );
     ImGui::SameLine();
     ToggleButton( ICON_FA_TAGS " Messages", m_showMessages );
     ImGui::SameLine();
-    ToggleButton( ICON_FA_MAGNIFYING_GLASS " Find zone", m_findZone.show );
+    ToggleButton( ICON_FA_MAGNIFYING_GLASS " Find", m_findZone.show );
     ImGui::SameLine();
     ToggleButton( ICON_FA_ARROW_UP_WIDE_SHORT " Statistics", m_showStatistics );
+    ImGui::SameLine();
+    ToggleButton( ICON_FA_FIRE_FLAME_CURVED " Flame", m_showFlameGraph );
     ImGui::SameLine();
     ToggleButton( ICON_FA_MEMORY " Memory", m_memInfo.show );
     ImGui::SameLine();
@@ -1072,7 +1084,7 @@ bool View::DrawImpl()
     DrawFrames();
 
     const auto dockspaceId = ImGui::GetID( "tracyDockspace" );
-    ImGui::DockSpace( dockspaceId, ImVec2( 0, 0 ), ImGuiDockNodeFlags_NoDockingInCentralNode );
+    ImGui::DockSpace( dockspaceId, ImVec2( 0, 0 ), ImGuiDockNodeFlags_NoDockingOverCentralNode );
     if( ImGuiDockNode* node = ImGui::DockBuilderGetCentralNode( dockspaceId ) )
     {
         node->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
@@ -1106,6 +1118,7 @@ bool View::DrawImpl()
 
     if( m_showOptions ) DrawOptions();
     if( m_showMessages ) DrawMessages();
+    if( m_showFlameGraph ) DrawFlameGraph();
     if( m_findZone.show ) DrawFindZone();
     if( m_showStatistics ) DrawStatistics();
     if( m_memInfo.show ) DrawMemory();

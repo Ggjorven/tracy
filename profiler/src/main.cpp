@@ -68,6 +68,8 @@
 #include "ResolvService.hpp"
 #include "RunQueue.hpp"
 
+#include "GitRef.hpp"
+
 
 struct ClientData
 {
@@ -186,6 +188,7 @@ static void SetupDPIScale()
     style.Colors[ImGuiCol_Header] = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
     style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
     style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.26f, 0.59f, 0.98f, 0.45f);
+    style.Colors[ImGuiCol_TitleBgCollapsed] = style.Colors[ImGuiCol_TitleBg];
     style.ScaleAllSizes( scale );
 
     const auto ty = int( 80 * scale );
@@ -713,6 +716,21 @@ static void DrawContents()
             ImGui::PushFont( s_bigFont );
             tracy::TextCentered( buf );
             ImGui::PopFont();
+            ImGui::PushFont( s_smallFont );
+            ImGui::PushStyleColor( ImGuiCol_Text, GImGui->Style.Colors[ImGuiCol_TextDisabled] );
+            tracy::TextCentered( tracy::GitRef );
+            ImGui::PopStyleColor();
+            ImGui::PopFont();
+            if( ImGui::IsItemHovered() )
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted( "Click to copy git reference to clipboard" );
+                ImGui::EndTooltip();
+                if( ImGui::IsItemClicked() )
+                {
+                    ImGui::SetClipboardText( tracy::GitRef );
+                }
+            }
             ImGui::Spacing();
             ImGui::TextUnformatted( "A real time, nanosecond resolution, remote telemetry, hybrid\nframe and sampling profiler for games and other applications." );
             ImGui::Spacing();
@@ -934,7 +952,7 @@ static void DrawContents()
                     {
                         memcpy( addr, str.c_str(), str.size() + 1 );
                     }
-                    if( ImGui::IsItemHovered() && ImGui::IsKeyPressed( ImGui::GetKeyIndex( ImGuiKey_Delete ), false ) )
+                    if( ImGui::IsItemHovered() && ImGui::IsKeyPressed( ImGuiKey_Delete, false ) )
                     {
                         idxRemove = (int)i;
                     }
@@ -946,23 +964,39 @@ static void DrawContents()
                 ImGui::EndCombo();
             }
         }
+#ifdef __EMSCRIPTEN__
+        ImGui::BeginDisabled();
+#endif
         connectClicked |= ImGui::Button( ICON_FA_WIFI " Connect" );
+#ifdef __EMSCRIPTEN__
+        ImGui::EndDisabled();
+        connectClicked = false;
+#endif
         if( connectClicked && *addr && !loadThread.joinable() )
         {
-            connHist->Count( addr );
+            auto aptr = addr;
+            while( *aptr == ' ' || *aptr == '\t' ) aptr++;
+            auto aend = aptr;
+            while( *aend && *aend != ' ' && *aend != '\t' ) aend++;
 
-            const auto addrLen = strlen( addr );
-            auto ptr = addr + addrLen - 1;
-            while( ptr > addr && *ptr != ':' ) ptr--;
-            if( *ptr == ':' )
+            if( aptr != aend )
             {
-                std::string addrPart = std::string( addr, ptr );
-                uint16_t portPart = (uint16_t)atoi( ptr+1 );
-                view = std::make_unique<tracy::View>( RunOnMainThread, addrPart.c_str(), portPart, s_fixedWidth, s_smallFont, s_bigFont, SetWindowTitleCallback, SetupScaleCallback, AttentionCallback, s_config, s_achievements );
-            }
-            else
-            {
-                view = std::make_unique<tracy::View>( RunOnMainThread, addr, port, s_fixedWidth, s_smallFont, s_bigFont, SetWindowTitleCallback, SetupScaleCallback, AttentionCallback, s_config, s_achievements );
+                std::string address( aptr, aend );
+                connHist->Count( address );
+
+                auto adata = address.data();
+                auto ptr = adata + address.size() - 1;
+                while( ptr > adata && *ptr != ':' ) ptr--;
+                if( *ptr == ':' )
+                {
+                    std::string addrPart = std::string( adata, ptr );
+                    uint16_t portPart = (uint16_t)atoi( ptr+1 );
+                    view = std::make_unique<tracy::View>( RunOnMainThread, addrPart.c_str(), portPart, s_fixedWidth, s_smallFont, s_bigFont, SetWindowTitleCallback, SetupScaleCallback, AttentionCallback, s_config, s_achievements );
+                }
+                else
+                {
+                    view = std::make_unique<tracy::View>( RunOnMainThread, address.c_str(), port, s_fixedWidth, s_smallFont, s_bigFont, SetWindowTitleCallback, SetupScaleCallback, AttentionCallback, s_config, s_achievements );
+                }
             }
         }
         if( s_config.memoryLimit )

@@ -5,12 +5,24 @@ here.
 vx.xx.x (xxxx-xx-xx)
 --------------------
 
+- CPU topology data now includes CPU die information.
+- Clients running under Wine will now report that in the trace info.
+- Added flame graph.
+- The Git ref information for the build is now included in the about dialog.
+- Added support for clipboard copy and paste on Wayland.
+
+
+v0.11.1 (2024-08-22)
+--------------------
+
 - Utilities import-chrome and import-fuchsia now live together in the import
   directory.
 - Added TRACY_VERBOSE to available CMake options.
 - It is now possible to set TRACY_SAMPLING_HZ via a environment variable.
 - Thread group hints can be now used to group threads together in the
   profiler UI.
+- Limit Lua file names to 255 characters, as the source string can contain
+  the whole script, if loaded with loadstring().
 
 
 v0.11.0 (2024-07-16)

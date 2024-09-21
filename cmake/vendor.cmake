@@ -24,7 +24,7 @@ else()
     CPMAddPackage(
         NAME capstone
         GITHUB_REPOSITORY capstone-engine/capstone
-        GIT_TAG 5.0.1
+        GIT_TAG 5.0.3
     )
     add_library(TracyCapstone INTERFACE)
     target_include_directories(TracyCapstone INTERFACE ${capstone_SOURCE_DIR}/include/capstone)
@@ -66,7 +66,7 @@ else()
     CPMAddPackage(
         NAME freetype
         GITHUB_REPOSITORY freetype/freetype
-        GIT_TAG VER-2-13-2
+        GIT_TAG VER-2-13-3
         OPTIONS
             "FT_DISABLE_HARFBUZZ ON"
             "FT_WITH_HARFBUZZ OFF"
@@ -158,6 +158,10 @@ add_definitions(-DIMGUI_ENABLE_FREETYPE)
 add_library(TracyImGui STATIC ${IMGUI_SOURCES})
 target_include_directories(TracyImGui PUBLIC ${IMGUI_DIR})
 target_link_libraries(TracyImGui PUBLIC TracyFreetype)
+
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(TracyImGui PUBLIC "IMGUI_DISABLE_DEBUG_TOOLS")
+endif()
 
 # NFD
 

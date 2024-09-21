@@ -36,7 +36,8 @@ constexpr const char* GpuContextNames[] = {
     "Vulkan",
     "OpenCL",
     "Direct3D 12",
-    "Direct3D 11"
+    "Direct3D 11",
+    "Metal"
 };
 
 struct MemoryPage;
@@ -51,6 +52,8 @@ struct CpuUsageDraw;
 struct CpuCtxDraw;
 struct LockDraw;
 struct PlotDraw;
+struct FlameGraphItem;
+struct FlameGraphContext;
 
 
 class View
@@ -271,6 +274,8 @@ private:
     void DrawRangeEntry( Range& range, const char* label, uint32_t color, const char* popupLabel, int id );
     void DrawSourceTooltip( const char* filename, uint32_t line, int before = 3, int after = 3, bool separateTooltip = true );
     void DrawWaitStacks();
+    void DrawFlameGraph();
+    void DrawFlameGraphItem( const FlameGraphItem& item, FlameGraphContext& ctx, uint64_t ts, int depth, bool samples );
 
     void ListMemData( std::vector<const MemEvent*>& vec, const std::function<void(const MemEvent*)>& DrawAddress, int64_t startTime = -1, uint64_t pool = 0 );
 
@@ -308,7 +313,7 @@ private:
     uint32_t GetRawSrcLocColor( const SourceLocation& srcloc, int depth );
     uint32_t GetZoneColor( const ZoneEvent& ev, uint64_t thread, int depth );
     uint32_t GetZoneColor( const GpuEvent& ev );
-    ZoneColorData GetZoneColorData( const ZoneEvent& ev, uint64_t thread, int depth );
+    ZoneColorData GetZoneColorData( const ZoneEvent& ev, uint64_t thread, int depth, uint32_t inheritedColor );
     ZoneColorData GetZoneColorData( const GpuEvent& ev );
 
     void ZoomToZone( const ZoneEvent& ev );
@@ -377,9 +382,11 @@ private:
 
     unordered_flat_map<uint64_t, bool> m_visibleMsgThread;
     unordered_flat_map<uint64_t, bool> m_waitStackThread;
+    unordered_flat_map<uint64_t, bool> m_flameGraphThread;
     unordered_flat_map<const void*, int> m_gpuDrift;
     unordered_flat_map<const PlotData*, PlotView> m_plotView;
     Vector<const ThreadData*> m_threadOrder;
+    Vector<const ThreadData*> m_threadReinsert;
     Vector<float> m_threadDnd;
 
     tracy_force_inline bool& VisibleMsgThread( uint64_t thread )
@@ -398,6 +405,16 @@ private:
         if( it == m_waitStackThread.end() )
         {
             it = m_waitStackThread.emplace( thread, true ).first;
+        }
+        return it->second;
+    }
+
+    tracy_force_inline bool& FlameGraphThread( uint64_t thread )
+    {
+        auto it = m_flameGraphThread.find( thread );
+        if( it == m_flameGraphThread.end() )
+        {
+            it = m_flameGraphThread.emplace( thread, true ).first;
         }
         return it->second;
     }
@@ -488,10 +505,13 @@ private:
     bool m_showCpuDataWindow = false;
     bool m_showAnnotationList = false;
     bool m_showWaitStacks = false;
+    bool m_showFlameGraph = false;
 
     AccumulationMode m_statAccumulationMode = AccumulationMode::SelfOnly;
     bool m_statSampleTime = true;
     int m_statMode = 0;
+    int m_flameMode = 0;
+    bool m_flameSort = false;
     int m_statSampleLocation = 2;
     bool m_statHideUnknown = true;
     bool m_showAllSymbols = false;

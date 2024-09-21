@@ -13,10 +13,12 @@ jobs:
     steps:
     - name: Install dependencies
       run: pacman -Syu --noconfirm && pacman -S --noconfirm --needed freetype2 tbb debuginfod wayland dbus libxkbcommon libglvnd meson cmake git wayland-protocols nodejs
+    - name: Trust git repo
+      run: git config --global --add safe.directory '*'
     - uses: actions/checkout@v4
     - name: Profiler GUI
       run: |
-        cmake -B profiler/build -S profiler -DCMAKE_BUILD_TYPE=Release
+        cmake -B profiler/build -S profiler -DCMAKE_BUILD_TYPE=Release -DGIT_REV=${{ github.sha }}
         cmake --build profiler/build --parallel
     - name: Update utility
       run: |

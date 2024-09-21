@@ -33,13 +33,12 @@ else()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always")
 endif()
 
-if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT EMSCRIPTEN)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+if(EMSCRIPTEN)
+    add_compile_options(-pthread -DIMGUI_IMPL_OPENGL_ES2)
 endif()
 
-if(EMSCRIPTEN)
-    add_compile_options(-pthread)
-    add_link_options(-pthread)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT EMSCRIPTEN)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT EMSCRIPTEN)
