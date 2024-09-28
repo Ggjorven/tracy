@@ -9,7 +9,7 @@ namespace tracy
 
 constexpr unsigned Lz4CompressBound( unsigned isize ) { return isize + ( isize / 255 ) + 16; }
 
-enum : uint32_t { ProtocolVersion = 70 };
+enum : uint32_t { ProtocolVersion = 69 }; // Note(ggjorven): Original version is 70, use profiler 0.11.1
 enum : uint16_t { BroadcastVersion = 3 };
 
 using lz4sz_t = uint32_t;
